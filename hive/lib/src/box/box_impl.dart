@@ -43,7 +43,7 @@ class BoxImpl<E> extends BoxBaseImpl<E> implements Box<E> {
     if (frame != null) {
       return frame.value as E?;
     } else {
-      if (defaultValue != null && defaultValue is HiveObject) {
+      if (defaultValue != null && defaultValue is HiveObjectMixin) {
         defaultValue.init(key, this);
       }
       return defaultValue;
@@ -102,5 +102,10 @@ class BoxImpl<E> extends BoxBaseImpl<E> implements Box<E> {
       map[frame.key] = frame.value as E;
     }
     return map;
+  }
+
+  @override
+  Future<void> flush() async {
+    await backend.flush();
   }
 }

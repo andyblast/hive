@@ -146,7 +146,7 @@ class Keystore<E> {
   }
 
   /// Not part of public API
-  Frame? insert(Frame frame, {bool notify = true}) {
+  Frame? insert(Frame frame, {bool notify = true, bool lazy = false}) {
     var value = frame.value;
     Frame? deletedFrame;
 
@@ -156,20 +156,20 @@ class Keystore<E> {
         _autoIncrement = key;
       }
 
-      if (value is HiveObject) {
+      if (value is HiveObjectMixin) {
         value.init(key, _box);
       }
 
-      deletedFrame = _store.insert(key, frame);
+      deletedFrame = _store.insert(key, lazy ? frame.toLazy() : frame);
     } else {
       deletedFrame = _store.delete(frame.key);
     }
 
     if (deletedFrame != null) {
       _deletedEntries++;
-      if (deletedFrame.value is HiveObject &&
+      if (deletedFrame.value is HiveObjectMixin &&
           !identical(deletedFrame.value, value)) {
-        (deletedFrame.value as HiveObject).dispose();
+        (deletedFrame.value as HiveObjectMixin).dispose();
       }
     }
 
@@ -257,8 +257,8 @@ class Keystore<E> {
     _store.clear();
 
     for (var frame in frameList) {
-      if (frame.value is HiveObject) {
-        (frame.value as HiveObject).dispose();
+      if (frame.value is HiveObjectMixin) {
+        (frame.value as HiveObjectMixin).dispose();
       }
       _notifier.notify(Frame.deleted(frame.key));
     }

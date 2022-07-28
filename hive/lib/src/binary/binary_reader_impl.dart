@@ -150,7 +150,7 @@ class BinaryReaderImpl extends BinaryReader {
     length ??= readUint32();
     _requireBytes(length * 8);
     var byteData = _byteData;
-    var list = List<int>.filled(length, 0);
+    var list = List<int>.filled(length, 0, growable: true);
     for (var i = 0; i < length; i++) {
       list[i] = byteData.getFloat64(_offset, Endian.little).toInt();
       _offset += 8;
@@ -163,7 +163,7 @@ class BinaryReaderImpl extends BinaryReader {
     length ??= readUint32();
     _requireBytes(length * 8);
     var byteData = _byteData;
-    var list = List<double>.filled(length, 0.0);
+    var list = List<double>.filled(length, 0.0, growable: true);
     for (var i = 0; i < length; i++) {
       list[i] = byteData.getFloat64(_offset, Endian.little);
       _offset += 8;
@@ -175,7 +175,7 @@ class BinaryReaderImpl extends BinaryReader {
   List<bool> readBoolList([int? length]) {
     length ??= readUint32();
     _requireBytes(length);
-    var list = List<bool>.filled(length, false);
+    var list = List<bool>.filled(length, false, growable: true);
     for (var i = 0; i < length; i++) {
       list[i] = _buffer[_offset++] > 0;
     }
@@ -187,7 +187,7 @@ class BinaryReaderImpl extends BinaryReader {
       [int? length,
       Converter<List<int>, String> decoder = BinaryReader.utf8Decoder]) {
     length ??= readUint32();
-    var list = List<String>.filled(length, '');
+    var list = List<String>.filled(length, '', growable: true);
     for (var i = 0; i < length; i++) {
       list[i] = readString(null, decoder);
     }
@@ -197,7 +197,7 @@ class BinaryReaderImpl extends BinaryReader {
   @override
   List readList([int? length]) {
     length ??= readUint32();
-    var list = List<dynamic>.filled(length, null);
+    var list = List<dynamic>.filled(length, null, growable: true);
     for (var i = 0; i < length; i++) {
       list[i] = read();
     }
@@ -219,9 +219,9 @@ class BinaryReaderImpl extends BinaryReader {
     var keyType = readByte();
     if (keyType == FrameKeyType.uintT) {
       return readUint32();
-    } else if (keyType == FrameKeyType.asciiStringT) {
-      var keyLength = readByte();
-      return String.fromCharCodes(viewBytes(keyLength));
+    } else if (keyType == FrameKeyType.utf8StringT) {
+      var byteCount = readByte();
+      return BinaryReader.utf8Decoder.convert(viewBytes(byteCount));
     } else {
       throw HiveError('Unsupported key type. Frame might be corrupted.');
     }
@@ -232,7 +232,7 @@ class BinaryReaderImpl extends BinaryReader {
     length ??= readUint32();
     var boxNameLength = readByte();
     var boxName = String.fromCharCodes(viewBytes(boxNameLength));
-    var keys = List<dynamic>.filled(length, null);
+    var keys = List<dynamic>.filled(length, null, growable: true);
     for (var i = 0; i < length; i++) {
       keys[i] = readKey();
     }
@@ -243,13 +243,14 @@ class BinaryReaderImpl extends BinaryReader {
   /// Not part of public API
   Frame? readFrame(
       {HiveCipher? cipher, bool lazy = false, int frameOffset = 0}) {
+    // frame length is stored on 4 bytes
     if (availableBytes < 4) return null;
 
+    // frame length should be at least 8 bytes
     var frameLength = readUint32();
-    if (frameLength < 8) {
-      throw HiveError(
-          'This should not happen. Please open an issue on GitHub.');
-    }
+    if (frameLength < 8) return null;
+
+    // frame is bigger than avaible bytes
     if (availableBytes < frameLength - 4) return null;
 
     var crc = _buffer.readUint32(_offset + frameLength - 8);
@@ -260,6 +261,7 @@ class BinaryReaderImpl extends BinaryReader {
       crc: cipher?.calculateKeyCrc() ?? 0,
     );
 
+    // frame is corrupted or provided chiper is different
     if (computedCrc != crc) return null;
 
     _limitAvailableBytes(frameLength - 8);
